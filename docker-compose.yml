@@ -1,0 +1,160 @@
+services:
+  eureka-server:
+    build:
+      context: ./eureka-server
+      dockerfile: Dockerfile
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+    networks:
+      - leave-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8761/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 90s
+
+  employee-service:
+    build:
+      context: .
+      dockerfile: employee-service/Dockerfile
+    environment:
+      PORT: "8002"
+      SERVICE_HOST: employee-service
+      EUREKA_SERVER: http://eureka-server:8761/eureka
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - leave-net
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; p=open('/tmp/service.port').read().strip(); urllib.request.urlopen('http://127.0.0.1:'+p+'/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
+    environment:
+      PORT: "8001"
+      SERVICE_HOST: auth-service
+      EUREKA_SERVER: http://eureka-server:8761/eureka
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      employee-service:
+        condition: service_healthy
+    networks:
+      - leave-net
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; p=open('/tmp/service.port').read().strip(); urllib.request.urlopen('http://127.0.0.1:'+p+'/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  leave-service:
+    build:
+      context: .
+      dockerfile: leave-service/Dockerfile
+    environment:
+      PORT: "8003"
+      SERVICE_HOST: leave-service
+      EUREKA_SERVER: http://eureka-server:8761/eureka
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USERNAME: guest
+      RABBITMQ_PASSWORD: guest
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      employee-service:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - leave-net
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; p=open('/tmp/service.port').read().strip(); urllib.request.urlopen('http://127.0.0.1:'+p+'/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: notification-service/Dockerfile
+    environment:
+      PORT: "8004"
+      SERVICE_HOST: notification-service
+      EUREKA_SERVER: http://eureka-server:8761/eureka
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USERNAME: guest
+      RABBITMQ_PASSWORD: guest
+      RABBITMQ_QUEUE: leave-logs
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - leave-net
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; p=open('/tmp/service.port').read().strip(); urllib.request.urlopen('http://127.0.0.1:'+p+'/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - leave-net
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q status || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  spring-gateway:
+    build:
+      context: ./spring-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      EUREKA_SERVER: http://eureka-server:8761/eureka
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      employee-service:
+        condition: service_healthy
+      leave-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    networks:
+      - leave-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+networks:
+  leave-net:
+    driver: bridge

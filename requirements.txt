@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+requests
+py-eureka-client
+python-jose[cryptography]
+pika
+pybreaker
+tenacity

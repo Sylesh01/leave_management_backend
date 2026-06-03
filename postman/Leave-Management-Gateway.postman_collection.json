@@ -1,0 +1,1234 @@
+{
+  "info": {
+    "name": "Leave Management Gateway",
+    "description": "Full positive and negative gateway tests (A–E matrix in POSTMAN-TEST-CASES.md).\n\nDocker (recommended):\n1. docker compose up (from project root — see DOCKER.md)\n2. baseUrl = http://localhost:8000, Eureka = http://localhost:8761\n\nLocal alternative:\n1. Eureka: cd eureka-server && mvn spring-boot:run\n2. Start Employee 8002, Auth 8001, Leave 8003, Notification 8004, Gateway 8000\n\nRun folder 01 - Login first (sets tokens), then 02 → 05.\nRestart leave-service before folder 05 for fresh seed leaves.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000" },
+    { "key": "employee_token", "value": "" },
+    { "key": "manager_token", "value": "" },
+    { "key": "admin_token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "01 - Login (run first)",
+      "item": [
+        {
+          "name": "POS - Login as employee (john)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Has access_token', () => pm.expect(json.access_token).to.be.a('string'));",
+                  "pm.test('Token type Bearer', () => pm.expect(json.token_type).to.eql('Bearer'));",
+                  "pm.collectionVariables.set('employee_token', json.access_token);",
+                  "pm.test('Employee id is 101', () => pm.expect(json.employee.id).to.eql(101));",
+                  "pm.test('Role employee', () => pm.expect(json.employee.role).to.eql('employee'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"john\",\n  \"password\": \"john123\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "POS - Login as manager (manager_eng)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('manager_token', json.access_token);",
+                  "pm.test('Employee id is 201', () => pm.expect(json.employee.id).to.eql(201));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"manager_eng\",\n  \"password\": \"manager123\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "POS - Login as admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('admin_token', json.access_token);",
+                  "pm.test('Role is admin', () => pm.expect(json.employee.role).to.eql('admin'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "NEG - Wrong password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"john\",\n  \"password\": \"wrongpassword\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "NEG - Unknown username",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"not_a_user\",\n  \"password\": \"john123\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Employee flow (john)",
+      "item": [
+        {
+          "name": "POS - Leave details own (101)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Single employee in response', () => pm.expect(json.employees).to.have.lengthOf(1));",
+                  "pm.test('Has sick/casual/privilege/total', () => {",
+                  "  const leaves = json.employees[0].leaves;",
+                  "  pm.expect(leaves).to.have.keys('sick','casual','privilege','total');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{employee_token}}" }
+            ],
+            "url": "{{baseUrl}}/employees/101/leave-details"
+          }
+        },
+        {
+          "name": "POS - Create employee (mark)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('Correct username', () => pm.expect(json.username).to.eql('mark'));",
+                  "pm.test('Default casual balance 12', () => pm.expect(json.leave_balance.casual).to.eql(12));",
+                  "pm.test('Default sick balance 10', () => pm.expect(json.leave_balance.sick).to.eql(10));",
+                  "pm.test('Default privilege balance 15', () => pm.expect(json.leave_balance.privilege).to.eql(15));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"mark\",\n  \"password\": \"mark123\",\n  \"name\": \"Mark Taylor\",\n  \"role\": \"employee\",\n  \"department\": \"Engineering\",\n  \"manager_id\": 201\n}"
+            },
+            "url": "{{baseUrl}}/employees"
+          }
+        },
+        {
+          "name": "POS - Leave history own (101)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Correct employee_id', () => pm.expect(json.employee_id).to.eql(101));",
+                  "pm.test('Has applications array', () => pm.expect(json.applications).to.be.an('array'));",
+                  "pm.test('Applications have required fields', () => {",
+                  "  if (json.applications.length > 0) {",
+                  "    const row = json.applications[0];",
+                  "    pm.expect(row).to.have.keys('leave_id','leave_type','start_date','end_date','days','reason','status','rejection_comments','processed_at','processed_by','reporting_manager');",
+                  "  }",
+                  "});",
+                  "pm.test('Sorted newest first by leave_id', () => {",
+                  "  const ids = json.applications.map(a => a.leave_id);",
+                  "  const sorted = [...ids].sort((a, b) => b - a);",
+                  "  pm.expect(ids).to.eql(sorted);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{employee_token}}" }
+            ],
+            "url": "{{baseUrl}}/employees/101/leave-history"
+          }
+        },
+        {
+          "name": "NEG - Leave history for alice (102) forbidden",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 403', () => pm.response.to.have.status(403));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{employee_token}}" }
+            ],
+            "url": "{{baseUrl}}/employees/102/leave-history"
+          }
+        },
+        {
+          "name": "POS - Apply leave (1 day casual, no overlap)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('Status PENDING', () => pm.expect(json.leave.status).to.eql('PENDING'));",
+                  "pm.test('Has reporting manager', () => pm.expect(json.leave.reporting_manager.employee_id).to.eql(201));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{employee_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leave_type\": \"casual\",\n  \"start_date\": \"2026-09-01\",\n  \"end_date\": \"2026-09-01\",\n  \"days\": 1,\n  \"reason\": \"Personal errand\"\n}"
+            },
+            "url": "{{baseUrl}}/employees/101/apply-leave"
+          }
+        },
+        {
+          "name": "NEG - Leave details for alice (102) forbidden",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 403', () => pm.response.to.have.status(403));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{employee_token}}" }
+            ],
+            "url": "{{baseUrl}}/employees/102/leave-details"
+          }
+        },
+        {
+          "name": "NEG - Apply leave for alice (102) forbidden",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 403', () => pm.response.to.have.status(403));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{employee_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leave_type\": \"casual\",\n  \"start_date\": \"2026-09-10\",\n  \"end_date\": \"2026-09-10\",\n  \"days\": 1,\n  \"reason\": \"Should fail\"\n}"
+            },
+            "url": "{{baseUrl}}/employees/102/apply-leave"
+          }
+        },
+        {
+          "name": "NEG - Overlap existing PENDING leave (2026-05-01)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Overlap message', () => pm.expect(pm.response.text()).to.include('overlap'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{employee_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leave_type\": \"sick\",\n  \"start_date\": \"2026-05-01\",\n  \"end_date\": \"2026-05-02\",\n  \"days\": 2,\n  \"reason\": \"Overlaps seed leave id 1\"\n}"
+            },
+            "url": "{{baseUrl}}/employees/101/apply-leave"
+          }
+        },
+        {
+          "name": "NEG - Insufficient casual balance (request 5, has 4)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Insufficient balance', () => pm.expect(pm.response.text()).to.include('Insufficient'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{employee_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leave_type\": \"casual\",\n  \"start_date\": \"2026-10-01\",\n  \"end_date\": \"2026-10-05\",\n  \"days\": 5,\n  \"reason\": \"More days than balance\"\n}"
+            },
+            "url": "{{baseUrl}}/employees/101/apply-leave"
+          }
+        },
+        {
+          "name": "NEG - start_date after end_date",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{employee_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leave_type\": \"casual\",\n  \"start_date\": \"2026-11-05\",\n  \"end_date\": \"2026-11-01\",\n  \"days\": 1,\n  \"reason\": \"Invalid date order\"\n}"
+            },
+            "url": "{{baseUrl}}/employees/101/apply-leave"
+          }
+        },
+        {
+          "name": "NEG - days mismatch (2 days in range, days=3)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Days mismatch', () => pm.expect(pm.response.text()).to.include('days must be'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{employee_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leave_type\": \"casual\",\n  \"start_date\": \"2026-11-01\",\n  \"end_date\": \"2026-11-02\",\n  \"days\": 3,\n  \"reason\": \"Wrong day count\"\n}"
+            },
+            "url": "{{baseUrl}}/employees/101/apply-leave"
+          }
+        },
+        {
+          "name": "NEG - negative days",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{employee_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leave_type\": \"casual\",\n  \"start_date\": \"2026-12-01\",\n  \"end_date\": \"2026-12-01\",\n  \"days\": -1,\n  \"reason\": \"Negative days\"\n}"
+            },
+            "url": "{{baseUrl}}/employees/101/apply-leave"
+          }
+        },
+        {
+          "name": "NEG - invalid leave_type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{employee_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leave_type\": \"vacation\",\n  \"start_date\": \"2026-12-05\",\n  \"end_date\": \"2026-12-05\",\n  \"days\": 1,\n  \"reason\": \"Bad type\"\n}"
+            },
+            "url": "{{baseUrl}}/employees/101/apply-leave"
+          }
+        },
+        {
+          "name": "NEG - empty reason",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{employee_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leave_type\": \"casual\",\n  \"start_date\": \"2026-12-10\",\n  \"end_date\": \"2026-12-10\",\n  \"days\": 1,\n  \"reason\": \"   \"\n}"
+            },
+            "url": "{{baseUrl}}/employees/101/apply-leave"
+          }
+        },
+        {
+          "name": "NEG - No Authorization header (leave-details)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('Missing auth detail', () => pm.expect(pm.response.json().detail).to.include('Authorization'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/employees/101/leave-details"
+          }
+        },
+        {
+          "name": "NEG - No Authorization header (leave-history)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/employees/101/leave-history"
+          }
+        },
+        {
+          "name": "NEG - No Authorization header (apply-leave)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leave_type\": \"casual\",\n  \"start_date\": \"2026-12-20\",\n  \"end_date\": \"2026-12-20\",\n  \"days\": 1,\n  \"reason\": \"No token\"\n}"
+            },
+            "url": "{{baseUrl}}/employees/101/apply-leave"
+          }
+        },
+        {
+          "name": "NEG - Invalid Bearer token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('Invalid token', () => pm.expect(pm.response.json().detail).to.include('Invalid'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer not-a-valid-jwt" }
+            ],
+            "url": "{{baseUrl}}/employees/101/leave-details"
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Manager flow (manager_eng)",
+      "item": [
+        {
+          "name": "POS - Leave details self + team (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Includes manager and reports', () => pm.expect(json.employees.length).to.be.at.least(3));",
+                  "const ids = json.employees.map(e => e.employee_id);",
+                  "pm.test('Contains 201, 101, 102', () => {",
+                  "  pm.expect(ids).to.include.members([201, 101, 102]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{manager_token}}" }
+            ],
+            "url": "{{baseUrl}}/employees/201/leave-details"
+          }
+        },
+        {
+          "name": "POS - Leave details direct report (101)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{manager_token}}" }
+            ],
+            "url": "{{baseUrl}}/employees/101/leave-details"
+          }
+        },
+        {
+          "name": "NEG - Apply leave as manager (no manager_id)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('No reporting manager', () => pm.expect(pm.response.text()).to.include('reporting manager'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{manager_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leave_type\": \"casual\",\n  \"start_date\": \"2026-09-15\",\n  \"end_date\": \"2026-09-15\",\n  \"days\": 1,\n  \"reason\": \"Manager has no manager_id in seed data\"\n}"
+            },
+            "url": "{{baseUrl}}/employees/201/apply-leave"
+          }
+        },
+        {
+          "name": "NEG - View bob (103) not in team",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 403', () => pm.response.to.have.status(403));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{manager_token}}" }
+            ],
+            "url": "{{baseUrl}}/employees/103/leave-details"
+          }
+        },
+        {
+          "name": "NEG - Team leave requests wrong emp_id (101)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 403', () => pm.response.to.have.status(403));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{manager_token}}" }
+            ],
+            "url": "{{baseUrl}}/employees/101/team-leave-requests"
+          }
+        },
+        {
+          "name": "NEG - Leave history for report (101) forbidden",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('Self-only message', () => pm.expect(pm.response.json().detail).to.include('own'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{manager_token}}" }
+            ],
+            "url": "{{baseUrl}}/employees/101/leave-history"
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - Admin flow",
+      "item": [
+        {
+          "name": "POS - Leave details any employee (103 bob)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": "{{baseUrl}}/employees/103/leave-details"
+          }
+        },
+        {
+          "name": "POS - Leave details manager team (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Manager expansion', () => pm.expect(pm.response.json().employees.length).to.be.at.least(3));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": "{{baseUrl}}/employees/201/leave-details"
+          }
+        },
+        {
+          "name": "NEG - Admin apply for john (403 self-only rule)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('Self-only detail', () => pm.expect(pm.response.json().detail).to.include('own'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leave_type\": \"casual\",\n  \"start_date\": \"2026-09-20\",\n  \"end_date\": \"2026-09-20\",\n  \"days\": 1,\n  \"reason\": \"Admin cannot apply for others\"\n}"
+            },
+            "url": "{{baseUrl}}/employees/101/apply-leave"
+          }
+        },
+        {
+          "name": "NEG - Admin apply for self (301, no manager_id)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leave_type\": \"casual\",\n  \"start_date\": \"2026-09-25\",\n  \"end_date\": \"2026-09-25\",\n  \"days\": 1,\n  \"reason\": \"Admin has no reporting manager\"\n}"
+            },
+            "url": "{{baseUrl}}/employees/301/apply-leave"
+          }
+        },
+        {
+          "name": "NEG - Admin leave-history for john (403 self-only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 403', () => pm.response.to.have.status(403));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": "{{baseUrl}}/employees/101/leave-history"
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 - Manager leave requests",
+      "item": [
+        {
+          "name": "POS - Manager team leave requests (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Has manager_id', () => pm.expect(json.manager_id).to.eql(201));",
+                  "pm.test('Has team requests', () => pm.expect(json.requests.length).to.be.at.least(1));",
+                  "const empIds = json.requests.map(r => r.employee_id);",
+                  "pm.test('Includes reports 101 and 102', () => {",
+                  "  pm.expect(empIds).to.include(101);",
+                  "  pm.expect(empIds).to.include(102);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{manager_token}}" }
+            ],
+            "url": "{{baseUrl}}/employees/201/team-leave-requests"
+          }
+        },
+        {
+          "name": "NEG - Employee cannot view manager team (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 403', () => pm.response.to.have.status(403));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{employee_token}}" }
+            ],
+            "url": "{{baseUrl}}/employees/201/team-leave-requests"
+          }
+        },
+        {
+          "name": "POS - Admin team leave requests (all)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Has requests array', () => pm.expect(json.requests.length).to.be.at.least(2));",
+                  "pm.test('Admin sees manager_id in response', () => pm.expect(json.manager_id).to.eql(201));",
+                  "pm.test('Request rows have employee_name', () => {",
+                  "  if (json.requests.length > 0) {",
+                  "    pm.expect(json.requests[0]).to.have.property('employee_name');",
+                  "    pm.expect(json.requests[0]).to.have.property('rejection_comments');",
+                  "  }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": "{{baseUrl}}/employees/201/team-leave-requests"
+          }
+        },
+        {
+          "name": "NEG - No Authorization (team-leave-requests)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/employees/201/team-leave-requests"
+          }
+        },
+        {
+          "name": "NEG - Employee cannot approve leave (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 403', () => pm.response.to.have.status(403));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{employee_token}}" }
+            ],
+            "url": "{{baseUrl}}/leaves/1/approve"
+          }
+        },
+        {
+          "name": "NEG - Employee cannot reject leave (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 403', () => pm.response.to.have.status(403));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{employee_token}}" }
+            ],
+            "url": "{{baseUrl}}/leaves/2/reject"
+          }
+        },
+        {
+          "name": "NEG - Approve non-existent leave (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Not found', () => pm.expect(pm.response.json().detail).to.include('not found'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{manager_token}}" }
+            ],
+            "url": "{{baseUrl}}/leaves/9999/approve"
+          }
+        },
+        {
+          "name": "POS - Approve leave 1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Approved', () => pm.expect(json.leave.status).to.eql('APPROVED'));",
+                  "pm.test('Processed by manager', () => pm.expect(json.leave.processed_by).to.eql(201));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{manager_token}}" }
+            ],
+            "url": "{{baseUrl}}/leaves/1/approve"
+          }
+        },
+        {
+          "name": "NEG - Approve leave 1 again (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Already processed', () => pm.expect(pm.response.text()).to.include('processed'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{manager_token}}" }
+            ],
+            "url": "{{baseUrl}}/leaves/1/approve"
+          }
+        },
+        {
+          "name": "NEG - Reject already approved leave 1 (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Already processed', () => pm.expect(pm.response.text()).to.include('processed'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{manager_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rejection_comments\": \"Too late\"\n}"
+            },
+            "url": "{{baseUrl}}/leaves/1/reject"
+          }
+        },
+        {
+          "name": "POS - Reject leave 2 without comments",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Rejected', () => pm.expect(json.leave.status).to.eql('REJECTED'));",
+                  "pm.test('No comments', () => pm.expect(json.leave.rejection_comments).to.be.oneOf([null, undefined]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{manager_token}}" }
+            ],
+            "url": "{{baseUrl}}/leaves/2/reject"
+          }
+        },
+        {
+          "name": "POS - Reject leave 3 with comments",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Rejected with comments', () => {",
+                  "  pm.expect(json.leave.status).to.eql('REJECTED');",
+                  "  pm.expect(json.leave.rejection_comments).to.be.a('string');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{manager_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rejection_comments\": \"Please reschedule after project deadline\"\n}"
+            },
+            "url": "{{baseUrl}}/leaves/3/reject"
+          }
+        },
+        {
+          "name": "NEG - Reject leave 2 again (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Already processed', () => pm.expect(pm.response.text()).to.include('processed'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{manager_token}}" }
+            ],
+            "url": "{{baseUrl}}/leaves/2/reject"
+          }
+        },
+        {
+          "name": "NEG - Reject non-existent leave (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{manager_token}}" }
+            ],
+            "url": "{{baseUrl}}/leaves/9999/reject"
+          }
+        },
+        {
+          "name": "NEG - Reject leave 3 again (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{manager_token}}" }
+            ],
+            "url": "{{baseUrl}}/leaves/3/reject"
+          }
+        }
+      ]
+    }
+  ]
+}

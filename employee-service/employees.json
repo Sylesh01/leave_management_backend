@@ -1,0 +1,142 @@
+[
+  {
+    "id": 101,
+    "username": "john",
+    "password": "john123",
+    "name": "John Doe",
+    "role": "employee",
+    "department": "Engineering",
+    "manager_id": 201,
+    "leave_balance": {
+      "casual": 4,
+      "sick": 3,
+      "privilege": 12
+    }
+  },
+  {
+    "id": 102,
+    "username": "alice",
+    "password": "alice123",
+    "name": "Alice Smith",
+    "role": "employee",
+    "department": "Engineering",
+    "manager_id": 201,
+    "leave_balance": {
+      "casual": 3,
+      "sick": 4,
+      "privilege": 10
+    }
+  },
+  {
+    "id": 103,
+    "username": "bob",
+    "password": "bob123",
+    "name": "Bob Johnson",
+    "role": "employee",
+    "department": "Finance",
+    "manager_id": 202,
+    "leave_balance": {
+      "casual": 5,
+      "sick": 5,
+      "privilege": 12
+    }
+  },
+  {
+    "id": 104,
+    "username": "david",
+    "password": "david123",
+    "name": "David Brown",
+    "role": "employee",
+    "department": "HR",
+    "manager_id": 203,
+    "leave_balance": {
+      "casual": 5,
+      "sick": 4,
+      "privilege": 8
+    }
+  },
+  {
+    "id": 105,
+    "username": "emma",
+    "password": "emma123",
+    "name": "Emma Wilson",
+    "role": "employee",
+    "department": "HR",
+    "manager_id": 203,
+    "leave_balance": {
+      "casual": 4,
+      "sick": 5,
+      "privilege": 13
+    }
+  },
+  {
+    "id": 201,
+    "username": "manager_eng",
+    "password": "manager123",
+    "name": "Michael Scott",
+    "role": "manager",
+    "department": "Engineering",
+    "manager_id": null,
+    "leave_balance": {
+      "casual": 4,
+      "sick": 3,
+      "privilege": 10
+    }
+  },
+  {
+    "id": 202,
+    "username": "manager_fin",
+    "password": "manager123",
+    "name": "Sarah Connor",
+    "role": "manager",
+    "department": "Finance",
+    "manager_id": null,
+    "leave_balance": {
+      "casual": 5,
+      "sick": 4,
+      "privilege": 11
+    }
+  },
+  {
+    "id": 203,
+    "username": "manager_hr",
+    "password": "manager123",
+    "name": "Rachel Green",
+    "role": "manager",
+    "department": "HR",
+    "manager_id": null,
+    "leave_balance": {
+      "casual": 3,
+      "sick": 5,
+      "privilege": 9
+    }
+  },
+  {
+    "id": 301,
+    "username": "admin",
+    "password": "admin123",
+    "name": "System Admin",
+    "role": "admin",
+    "department": "IT",
+    "manager_id": null,
+    "leave_balance": {
+      "casual": 5,
+      "sick": 5,
+      "privilege": 15
+    }
+  },
+  {
+    "id": 302,
+    "username": "hr_admin",
+    "password": "hr123",
+    "name": "HR Admin",
+    "role": "admin",
+    "department": "HR",
+    "manager_id": null,
+    "leave_balance": {
+      "casual": 5,
+      "sick": 5,
+      "privilege": 14
+    }
+  }
+]
