@@ -1,0 +1,56 @@
+[
+    {
+        "leave_id": 1,
+        "employee_id": 101,
+        "leave_type": "sick",
+        "start_date": "2026-05-01",
+        "end_date": "2026-05-02",
+        "days": 2,
+        "reason": "Medical",
+        "status": "PENDING",
+        "reporting_manager": {
+            "employee_id": 201,
+            "name": "Michael Scott",
+            "username": "manager_eng"
+        },
+        "rejection_comments": null,
+        "processed_at": null,
+        "processed_by": null
+    },
+    {
+        "leave_id": 2,
+        "employee_id": 102,
+        "leave_type": "casual",
+        "start_date": "2026-06-10",
+        "end_date": "2026-06-10",
+        "days": 1,
+        "reason": "Personal",
+        "status": "PENDING",
+        "reporting_manager": {
+            "employee_id": 201,
+            "name": "Michael Scott",
+            "username": "manager_eng"
+        },
+        "rejection_comments": null,
+        "processed_at": null,
+        "processed_by": null
+    },
+    {
+        "leave_id": 3,
+        "employee_id": 101,
+        "leave_type": "privilege",
+        "start_date": "2026-07-15",
+        "end_date": "2026-07-16",
+        "days": 2,
+        "reason": "Family event",
+        "status": "PENDING",
+        "reporting_manager": {
+            "employee_id": 201,
+            "name": "Michael Scott",
+            "username": "manager_eng"
+        },
+        "rejection_comments": null,
+        "processed_at": null,
+        "processed_by": null
+    }
+]

@@ -1,0 +1,152 @@
+server:
+  port: 8000
+
+spring:
+  application:
+    name: SPRING-GATEWAY
+
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: false
+
+      routes:
+
+        # ==========================
+        # OPENAPI ROUTES (Swagger UI)
+        # Proxies each service OpenAPI spec to the gateway for aggregated docs
+        # ==========================
+
+        - id: auth-openapi
+          uri: lb://AUTH-SERVICE
+          predicates:
+            - Path=/auth/openapi.json
+          filters:
+            - RewritePath=/auth/openapi.json,/openapi.json
+
+        - id: employee-openapi
+          uri: lb://EMPLOYEE-SERVICE
+          predicates:
+            - Path=/employee/openapi.json
+          filters:
+            - RewritePath=/employee/openapi.json,/openapi.json
+
+        - id: leave-openapi
+          uri: lb://LEAVE-SERVICE
+          predicates:
+            - Path=/leave/openapi.json
+          filters:
+            - RewritePath=/leave/openapi.json,/openapi.json
+
+        - id: notification-openapi
+          uri: lb://NOTIFICATION-SERVICE
+          predicates:
+            - Path=/notification/openapi.json
+          filters:
+            - RewritePath=/notification/openapi.json,/openapi.json
+
+        # ==========================
+        # BUSINESS ROUTES
+        # Public API exposed via the gateway (JWT required except /auth/login)
+        # ==========================
+
+        - id: auth-login
+          uri: lb://AUTH-SERVICE
+          predicates:
+            - Method=POST
+            - Path=/auth/login
+          filters:
+            - RewritePath=/auth/login,/login
+
+        - id: leave-details
+          uri: lb://EMPLOYEE-SERVICE
+          predicates:
+            - Method=GET
+            - Path=/employees/*/leave-details
+
+        - id: employee-create
+          uri: lb://EMPLOYEE-SERVICE
+          predicates:
+            - Method=POST
+            - Path=/employees
+
+        - id: apply-leave
+          uri: lb://LEAVE-SERVICE
+          predicates:
+            - Method=POST
+            - Path=/employees/*/apply-leave
+          filters:
+            - RewritePath=/employees/(?<empId>\d+)/apply-leave,/leaves/employee/${empId}/apply
+
+        - id: leave-history
+          uri: lb://LEAVE-SERVICE
+          predicates:
+            - Method=GET
+            - Path=/employees/*/leave-history
+          filters:
+            - RewritePath=/employees/(?<empId>\d+)/leave-history,/leaves/employee/${empId}/history
+
+        - id: team-leave-requests
+          uri: lb://LEAVE-SERVICE
+          predicates:
+            - Method=GET
+            - Path=/employees/*/team-leave-requests
+          filters:
+            - RewritePath=/employees/(?<empId>\d+)/team-leave-requests,/employees/${empId}/team-leave-requests
+
+        - id: approve-leave
+          uri: lb://LEAVE-SERVICE
+          predicates:
+            - Method=PUT
+            - Path=/leaves/*/approve
+
+        - id: reject-leave
+          uri: lb://LEAVE-SERVICE
+          predicates:
+            - Method=PUT
+            - Path=/leaves/*/reject
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_SERVER:http://localhost:8761/eureka}
+    register-with-eureka: true
+    fetch-registry: true
+
+  instance:
+    prefer-ip-address: true
+    hostname: ${HOSTNAME:spring-gateway}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+  endpoint:
+    health:
+      show-details: never
+
+springdoc:
+  # Aggregated Swagger UI — uses the OPENAPI ROUTES above
+  api-docs:
+    enabled: true
+
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    disable-swagger-default-url: true
+
+    urls:
+      - url: /auth/openapi.json
+        name: Authentication
+
+      - url: /employee/openapi.json
+        name: Employee Management
+
+      - url: /leave/openapi.json
+        name: Leave Management
+
+      - url: /notification/openapi.json
+        name: Notifications
